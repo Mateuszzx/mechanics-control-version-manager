@@ -1,18 +1,15 @@
 from customtkinter import CTk, CTkFrame, CTkLabel, CTkTextbox, CTkButton
 from tkinter import ttk, simpledialog, messagebox
+import tkinter as tks
 from src.utils.status_manager import load_status, save_status, scan_and_add_new_files
 from datetime import datetime
 from pathlib import Path
+from src.gui.commit_display import CommitDisplay
 
 class MainWindow(CTkFrame):
     def __init__(self, parent, conn):
         super().__init__(parent)
         self.conn = conn
-
-        # Author input
-        self.author = simpledialog.askstring("Your Name", "Enter your name (for commits and status updates):")
-        if not self.author:
-            self.author = "unknown"
 
         # File Treeview
         columns = ("version", "status", "notes", "assigned_by")
@@ -29,12 +26,15 @@ class MainWindow(CTkFrame):
 
         self.tree.pack(fill="both", expand=True, padx=10, pady=5)
 
-        # Commit display
-        self.commit_label = CTkLabel(self, text="Recent Commits:")
-        self.commit_label.pack(anchor="w", padx=10, pady=(10, 0))
 
-        self.commit_text = CTkTextbox(self, height=10, state="disabled")
-        self.commit_text.pack(fill="x", padx=10, pady=5)
+        # Author input
+        self.author = simpledialog.askstring("Your Name", "Enter your name (for commits and status updates):")
+        if not self.author:
+            self.author = "unknown"
+
+        # Commit display
+        self.commit_display = CommitDisplay(self, self.conn)
+        self.commit_display.pack(fill="x", padx=10, pady=5)
 
         # Buttons
         btn_frame = CTkFrame(self)
@@ -43,46 +43,23 @@ class MainWindow(CTkFrame):
         CTkButton(btn_frame, text="Mark as Modified", command=self.mark_modified).pack(side="left", padx=5)
         CTkButton(btn_frame, text="Change Status", command=self.change_status).pack(side="left", padx=5)
         CTkButton(btn_frame, text="Scan for New Files", command=self.scan_files).pack(side="left", padx=5)
-        CTkButton(btn_frame, text="Reload YAML", command=self.refresh_view).pack(side="left", padx=5)
         CTkButton(btn_frame, text="Add File", command=self.add_file).pack(side="left", padx=5)
-        CTkButton(btn_frame, text="Refresh", command=self.refresh_view).pack(side="left", padx=5)
+        CTkButton(btn_frame, text="Delete File", command=self.delete_file).pack(side="left", padx=5)
 
         self.refresh_view()
 
     def refresh_view(self):
-        self.data = load_status()
+        """Refresh the file tree and commit display."""
         self.tree.delete(*self.tree.get_children())
-        folder_nodes = {}
-
-        for f in self.data.get("files", []):
-            filepath = Path(f["name"])
-            parent = ""
-
-            if filepath.parent != Path('.'):
-                folder = str(filepath.parent)
-                if folder not in folder_nodes:
-                    folder_nodes[folder] = self.tree.insert("", "end", text=folder, open=True)
-                parent = folder_nodes[folder]
-
-            self.tree.insert(parent, "end", text=filepath.name, values=(
-                f["version"], f["status"], f.get("notes", ""), f.get("assigned_by", "")
-            ))
-
-        self.commit_text.configure(state="normal")
-        self.commit_text.delete("1.0", "end")
-        for commit in reversed(self.data.get("changelog", [])[-5:]):
-            self.commit_text.insert("end", f"{commit['date']} — {commit['author']}\n")
-            for change in commit["changes"]:
-                self.commit_text.insert("end", f"  • {change}\n")
-            self.commit_text.insert("end", "-" * 40 + "\n")
-        self.commit_text.configure(state="disabled")
-
         cursor = self.conn.cursor()
         cursor.execute("SELECT name, version, status, notes FROM files")
         for row in cursor.fetchall():
             self.tree.insert("", "end", text=row[0], values=row[1:])
 
+        self.commit_display.update_commits()
+
     def mark_modified(self):
+        """Mark the selected file(s) as modified in the database."""
         selected_items = self.tree.selection()
         if not selected_items:
             messagebox.showinfo("No selection", "Please select one or more files.")
@@ -92,41 +69,35 @@ class MainWindow(CTkFrame):
         if comment is None:
             return
 
-        def get_full_path(item_id):
-            parts = []
-            while item_id:
-                parts.insert(0, self.tree.item(item_id)["text"])
-                item_id = self.tree.parent(item_id)
-            return Path("/".join(parts)).as_posix()
-
+        cursor = self.conn.cursor()
         updated_files = []
+
         for item_id in selected_items:
             if not self.tree.item(item_id)["values"]:
-                continue  # skip folders
+                continue  # Skip folders
 
-            filename = get_full_path(item_id)
+            filename = self.tree.item(item_id)["text"]
+            cursor.execute("SELECT version FROM files WHERE name = ?", (filename,))
+            row = cursor.fetchone()
+            if row:
+                current_version = row[0]
+                try:
+                    version_number = float(current_version.lstrip("v"))
+                    new_version = f"v{version_number + 0.01:.2f}"
+                except ValueError:
+                    new_version = "v1.01"
 
-            for f in self.data["files"]:
-                if Path(f["name"]).as_posix() == filename:
-                    try:
-                        v = float(f["version"].lstrip("v"))
-                        f["version"] = f"v{v + 0.01:.2f}"
-                    except Exception:
-                        f["version"] = "v1.01"
-                    f["notes"] = comment
-                    f["modified"] = True
-                    f["assigned_by"] = self.author
-                    updated_files.append(filename)
-                    break
+                cursor.execute("""
+                UPDATE files
+                SET version = ?, notes = ?, modified = 1
+                WHERE name = ?
+                """, (new_version, comment, filename))
+                updated_files.append(filename)
+
+        self.conn.commit()
+        self.refresh_view()
 
         if updated_files:
-            self.data["changelog"].append({
-                "date": str(datetime.today().date()),
-                "author": self.author,
-                "changes": [f"Marked '{name}' as modified with version bump and note." for name in updated_files]
-            })
-            save_status(self.data)
-            self.refresh_view()
             messagebox.showinfo("Success", f"{len(updated_files)} file(s) marked as modified.")
         else:
             messagebox.showinfo("No files updated", "No files were matched or updated.")
@@ -205,9 +176,10 @@ class MainWindow(CTkFrame):
         tk.Button(status_window, text="Apply", command=apply_status).pack(pady=10)
 
     def scan_files(self):
-        scan_and_add_new_files()
+        """Scan for new files and add them to the database."""
+        scan_and_add_new_files(self.conn)
         self.refresh_view()
-        messagebox.showinfo("Scan complete", "New files (if any) have been added.")
+        messagebox.showinfo("Scan Complete", "New files (if any) have been added.")
 
     def add_file(self):
         """Add a new file to the database."""
@@ -222,6 +194,36 @@ class MainWindow(CTkFrame):
         """, (filename, "v1.0", "in_progress", "", False))
         self.conn.commit()
         self.refresh_view()
+
+    def delete_file(self):
+        """Delete the selected file(s) from the database."""
+        selected_items = self.tree.selection()
+        if not selected_items:
+            messagebox.showinfo("No selection", "Please select one or more files to delete.")
+            return
+
+        confirm = messagebox.askyesno("Confirm Delete", "Are you sure you want to delete the selected file(s)?")
+        if not confirm:
+            return
+
+        cursor = self.conn.cursor()
+        deleted_files = []
+
+        for item_id in selected_items:
+            if not self.tree.item(item_id)["values"]:
+                continue  # Skip folders
+
+            filename = self.tree.item(item_id)["text"]
+            cursor.execute("DELETE FROM files WHERE name = ?", (filename,))
+            deleted_files.append(filename)
+
+        self.conn.commit()
+        self.refresh_view()
+
+        if deleted_files:
+            messagebox.showinfo("Success", f"Deleted {len(deleted_files)} file(s).")
+        else:
+            messagebox.showinfo("No files deleted", "No files were matched or deleted.")
 
 if __name__ == "__main__":
     app = CTk()

@@ -1,12 +1,19 @@
-from tkinter import Menu, filedialog, messagebox
+"""3D File Version Tracker Application"""
+
+from tkinter import Menu, filedialog, messagebox, simpledialog
 from pathlib import Path
 import sqlite3
 import os
+from datetime import datetime
 
 from customtkinter import CTk
+
 from src.gui.main_window import MainWindow
+from src.utils.file_operations import scan_and_populate_files
 
 class App(CTk):
+    """Main application class for the 3D File Version Tracker."""
+
     def __init__(self):
         super().__init__()
         self.title("3D File Version Tracker")
@@ -15,9 +22,15 @@ class App(CTk):
         # Ask for the project folder at startup
         self.main_folder = self.ask_project_folder()
         if not self.main_folder:
-            messagebox.showinfo("No Folder Selected", "No project folder selected. Exiting application.")
+            messagebox.showinfo("No Folder Selected",
+                                "No project folder selected. Exiting application.")
             self.destroy()
             return
+
+        # Ask for the author name
+        self.author = simpledialog.askstring("Your Name", "Enter your name (for commits and status updates):")
+        if not self.author:
+            self.author = "unknown"
 
         # Initialize the database
         self.db_file = self.main_folder / "project_data.db"
@@ -71,9 +84,20 @@ class App(CTk):
         """)
         self.conn.commit()
 
+        # Scan and populate files
+        scan_and_populate_files(self.main_folder, self.conn)
+
+        # Insert a changelog entry for initialization
+        cursor.execute("""
+        INSERT INTO changelog (date, author, changes)
+        VALUES (?, ?, ?)
+        """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), self.author, "Initialized database and scanned files"))
+        self.conn.commit()
+
     def switch_project_folder(self):
         """Open a dialog to select a new project folder."""
-        new_folder = filedialog.askdirectory(initialdir=self.main_folder, title="Select Project Folder")
+        new_folder = filedialog.askdirectory(initialdir=self.main_folder,
+                                title="Select Project Folder")
         if new_folder:
             self.main_folder = Path(new_folder)
             self.db_file = self.main_folder / "project_data.db"

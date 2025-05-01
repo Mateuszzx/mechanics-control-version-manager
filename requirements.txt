@@ -1,4 +1,5 @@
 CustomTkinter
-tkinter
 datetime
 pathlib
+pyyaml
+types-setuptools
