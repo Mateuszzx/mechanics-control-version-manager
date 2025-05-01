@@ -5,8 +5,9 @@ from datetime import datetime
 from pathlib import Path
 
 class MainWindow(CTkFrame):
-    def __init__(self, parent):
+    def __init__(self, parent, conn):
         super().__init__(parent)
+        self.conn = conn
 
         # Author input
         self.author = simpledialog.askstring("Your Name", "Enter your name (for commits and status updates):")
@@ -43,6 +44,8 @@ class MainWindow(CTkFrame):
         CTkButton(btn_frame, text="Change Status", command=self.change_status).pack(side="left", padx=5)
         CTkButton(btn_frame, text="Scan for New Files", command=self.scan_files).pack(side="left", padx=5)
         CTkButton(btn_frame, text="Reload YAML", command=self.refresh_view).pack(side="left", padx=5)
+        CTkButton(btn_frame, text="Add File", command=self.add_file).pack(side="left", padx=5)
+        CTkButton(btn_frame, text="Refresh", command=self.refresh_view).pack(side="left", padx=5)
 
         self.refresh_view()
 
@@ -73,6 +76,11 @@ class MainWindow(CTkFrame):
                 self.commit_text.insert("end", f"  • {change}\n")
             self.commit_text.insert("end", "-" * 40 + "\n")
         self.commit_text.configure(state="disabled")
+
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT name, version, status, notes FROM files")
+        for row in cursor.fetchall():
+            self.tree.insert("", "end", text=row[0], values=row[1:])
 
     def mark_modified(self):
         selected_items = self.tree.selection()
@@ -200,6 +208,20 @@ class MainWindow(CTkFrame):
         scan_and_add_new_files()
         self.refresh_view()
         messagebox.showinfo("Scan complete", "New files (if any) have been added.")
+
+    def add_file(self):
+        """Add a new file to the database."""
+        filename = simpledialog.askstring("File Name", "Enter the file name:")
+        if not filename:
+            return
+
+        cursor = self.conn.cursor()
+        cursor.execute("""
+        INSERT INTO files (name, version, status, notes, modified)
+        VALUES (?, ?, ?, ?, ?)
+        """, (filename, "v1.0", "in_progress", "", False))
+        self.conn.commit()
+        self.refresh_view()
 
 if __name__ == "__main__":
     app = CTk()
