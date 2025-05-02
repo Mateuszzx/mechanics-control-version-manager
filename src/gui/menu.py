@@ -1,4 +1,4 @@
-""" Custom menu for the 3D File Version Tracker application""" 
+""" Custom menu for the 3D File Version Tracker application"""
 from customtkinter import CTkFrame, CTkButton
 
 

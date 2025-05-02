@@ -1,7 +1,32 @@
-""" Utility functions for file actions in a database context.
-This module provides functions to apply statuses, commit files, add new files """
+"""File Manager for handling file-related operations and database actions."""
 
 from datetime import datetime
+from pathlib import Path
+
+
+def scan_and_populate_files(main_folder, conn):
+    """Scan the selected folder for files and populate the database."""
+    allowed_ext = [".stl", ".step", ".sldprt", ".sldasm", ".stp"]
+    cursor = conn.cursor()
+
+    for file_path in Path(main_folder).rglob("*"):
+        if file_path.is_file() and file_path.suffix.lower() in allowed_ext:
+            relative_path = str(file_path.relative_to(main_folder))
+            cursor.execute("SELECT id FROM files WHERE name = ?", (relative_path,))
+            if cursor.fetchone() is None:
+                cursor.execute("""
+                INSERT INTO files (name, version, status, notes, modified)
+                VALUES (?, ?, ?, ?, ?)
+                """, (relative_path, "v1.0", "in_progress", "", False))
+    conn.commit()
+
+
+def fetch_files(conn):
+    """Fetch all files from the database."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, version, status, notes, author, last_modified_date FROM files")
+    return cursor.fetchall()
+
 
 def apply_status_to_files(conn, selected_files, new_status, author):
     """Apply a new status to the selected files."""
@@ -19,7 +44,6 @@ def apply_status_to_files(conn, selected_files, new_status, author):
     conn.commit()
 
     if updated_files:
-        # Add a changelog entry
         cursor.execute("""
         INSERT INTO changelog (date, author, changes)
         VALUES (?, ?, ?)
@@ -31,6 +55,7 @@ def apply_status_to_files(conn, selected_files, new_status, author):
         conn.commit()
 
     return updated_files
+
 
 def commit_files(files_conn, commits_conn, selected_files, comment, author):
     """Commit the selected files with a comment."""
@@ -49,7 +74,6 @@ def commit_files(files_conn, commits_conn, selected_files, comment, author):
             except ValueError:
                 new_version = "v1.01"
 
-            print(f"DEBUG: Updating file {filename} to version {new_version}")  # Debugging
             files_cursor.execute("""
             UPDATE files
             SET version = ?, modified = 1, author = ?, last_modified_date = ?, notes = ?
@@ -60,7 +84,6 @@ def commit_files(files_conn, commits_conn, selected_files, comment, author):
     files_conn.commit()
 
     if updated_files:
-        print(f"DEBUG: Adding changelog entry for {updated_files}")  # Debugging
         commits_cursor.execute("""
         INSERT INTO changelog (date, author, changes)
         VALUES (?, ?, ?)
@@ -73,6 +96,7 @@ def commit_files(files_conn, commits_conn, selected_files, comment, author):
 
     return updated_files
 
+
 def add_file_to_db(conn, filename):
     """Add a new file to the database."""
     cursor = conn.cursor()
@@ -82,10 +106,10 @@ def add_file_to_db(conn, filename):
     """, (filename, "v1.0", "in_progress", "", False))
     conn.commit()
 
+
 def delete_files_from_db(conn, filenames):
     """Delete files from the database."""
     cursor = conn.cursor()
     for filename in filenames:
         cursor.execute("DELETE FROM files WHERE name = ?", (filename,))
     conn.commit()
-

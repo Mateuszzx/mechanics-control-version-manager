@@ -2,14 +2,19 @@ from tkinter import simpledialog, messagebox
 import os
 
 from customtkinter import CTkFrame, CTkButton, CTkToplevel, CTkComboBox, CTkLabel
-from src.utils.file_actions import apply_status_to_files, commit_files, add_file_to_db, delete_files_from_db
+from src.utils.file_manager import (
+    apply_status_to_files,
+    commit_files,
+    add_file_to_db,
+    delete_files_from_db
+)
 from src.utils.status_manager import scan_and_add_new_files
-from src.gui.commit_display import CommitMessageDialog  # Import the new dialog
+from src.gui.commit_display import CommitMessageDialog
 
 
 class ButtonsPanel(CTkFrame):
     """Panel containing buttons for file operations."""
-    
+
     def __init__(self, master, files_conn, commits_conn, author, refresh_callback, main_folder):
         super().__init__(master)
         self.files_conn = files_conn  # Connection to the files database

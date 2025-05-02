@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import datetime
-from src.utils.file_operations import scan_and_populate_files
+from pathlib import Path
+from src.utils.file_manager import scan_and_populate_files
 
 def init_database(db_file, main_folder, author):
     """Initialize the SQLite database."""
@@ -60,3 +61,13 @@ def init_commits_database(db_file):
     conn.commit()
 
     return conn
+
+def initialize_databases(main_folder, author):
+    """Initialize the files and commits databases."""
+    files_db_file = Path(main_folder) / "files_data.db"
+    commits_db_file = Path(main_folder) / "commits_data.db"
+
+    files_conn = init_database(files_db_file, main_folder, author)
+    commits_conn = init_commits_database(commits_db_file)
+
+    return files_conn, commits_conn

@@ -63,9 +63,6 @@ class MainWindow(CTkFrame):
         cursor.execute("SELECT name, version, status, notes, author, last_modified_date FROM files")
         files = cursor.fetchall()
 
-        # Debugging: Print fetched files
-        print("DEBUG: Fetched files:", files)
-
         # Populate the TreeView with the fetched files
         folder_nodes = {}
         for file in files:
@@ -90,8 +87,6 @@ class MainWindow(CTkFrame):
         cursor.execute("SELECT date, author, changes FROM changelog ORDER BY id DESC LIMIT 1")
         latest_commit = cursor.fetchone()
 
-        # Debugging: Print the latest commit
-        print("DEBUG: Latest commit:", latest_commit)
 
         if latest_commit:
             date, author, changes = latest_commit

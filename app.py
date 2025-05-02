@@ -4,13 +4,14 @@ import os
 from pathlib import Path
 from tkinter import filedialog
 
-from customtkinter import CTk, CTkToplevel, CTkLabel, CTkEntry, CTkButton
+from customtkinter import CTk, CTkButton
 
 from src.gui.main_window import MainWindow
-from src.gui.menu import AppMenu  # Import the new menu class
+from src.gui.menu import AppMenu
 from src.utils.database_utils import init_database, init_commits_database
 from src.utils.workspace_utils import switch_workspace
 from src.utils.export_utils import export_commits_to_txt, export_commits_to_csv, export_commits_to_json
+from src.utils.dialog_utils import create_info_dialog, create_input_dialog
 
 
 class App(CTk):
@@ -19,7 +20,7 @@ class App(CTk):
     def __init__(self):
         super().__init__()
         self.title("3D File Version Tracker")
-        self.geometry("1200x800")
+        self.geometry("1400x800")
 
         self.main_folder = self.ask_project_folder()
         if not self.main_folder:
@@ -28,7 +29,7 @@ class App(CTk):
             return
 
         # Ask for the author name
-        self.author = self.ask_string("Your Name", "Enter your name (for commits and status updates):")
+        self.author = self.ask_string("Your Name", "Enter your name (for commits updates):")
         if not self.author:
             self.author = "unknown"
 
@@ -48,29 +49,27 @@ class App(CTk):
         self.main_window = MainWindow(self, self.files_conn, self.commits_conn, self.author)
         self.main_window.pack(fill="both", expand=True)
 
+
     def show_info(self, title, message):
-        """Display an info message using CTkToplevel."""
-        info_window = CTkToplevel(self)
-        info_window.title(title)
-        info_window.geometry("300x150")
-        CTkLabel(info_window, text=message, wraplength=280, font=("Arial", 12)).pack(pady=20)
-        CTkButton(info_window, text="OK", command=info_window.destroy).pack(pady=10)
+        """Display an info message."""
+        info_window = create_info_dialog(self, title, message)
+        info_window.grab_set()
+        self.wait_window(info_window)
 
     def ask_string(self, title, prompt):
-        """Display an input dialog using CTkToplevel."""
-        input_window = CTkToplevel(self)
-        input_window.title(title)
-        input_window.geometry("300x150")
-
-        CTkLabel(input_window, text=prompt, wraplength=280, font=("Arial", 12)).pack(pady=10)
-        input_var = CTkEntry(input_window, width=250)
-        input_var.pack(pady=10)
+        """Display an input dialog."""
+        input_window, input_var = create_input_dialog(self, title, prompt)
 
         def on_submit():
             self.input_value = input_var.get()
             input_window.destroy()
 
-        CTkButton(input_window, text="Submit", command=on_submit).pack(pady=10)
+        submit_button = CTkButton(input_window, text="Submit", command=on_submit)
+        submit_button.pack(pady=10)
+
+        input_var.focus_set()
+        input_window.bind("<Return>", lambda event: submit_button.invoke())
+
         input_window.grab_set()
         self.wait_window(input_window)
         return getattr(self, "input_value", None)
@@ -88,7 +87,8 @@ class App(CTk):
             self.commits_db_file = self.main_folder / "commits_data.db"
 
             # Switch workspace
-            self.files_conn = switch_workspace(self.main_folder, self.files_db_file, self.author, self.show_info)
+            self.files_conn = switch_workspace(self.main_folder, self.files_db_file,
+                                                self.author, self.show_info)
             self.commits_conn = init_commits_database(self.commits_db_file)
 
             # Destroy the old MainWindow and create a new one
@@ -129,7 +129,8 @@ class App(CTk):
         elif file_format == "json":
             export_commits_to_json(file_path, commits)
 
-        self.show_info("Export Successful", f"Commits have been exported to:\n{os.path.abspath(file_path)}")
+        self.show_info("Export Successful",
+            f"Commits have been exported to:\n{os.path.abspath(file_path)}")
 
 
 if __name__ == "__main__":
