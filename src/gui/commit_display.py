@@ -1,4 +1,4 @@
-from customtkinter import CTkFrame, CTkTextbox, CTkLabel
+from customtkinter import CTkFrame, CTkTextbox, CTkLabel, CTkToplevel, CTkEntry, CTkButton
 
 class CommitDisplay(CTkFrame):
     def __init__(self, master, conn):
@@ -9,7 +9,7 @@ class CommitDisplay(CTkFrame):
         self.commit_label = CTkLabel(self, text="Recent Commits:")
         self.commit_label.pack(anchor="w", padx=10, pady=(10, 0))
 
-        self.commit_text = CTkTextbox(self, height=200, state="disabled", fg_color="#f5f5f5", text_color="#333")
+        self.commit_text = CTkTextbox(self, height=300, state="disabled", fg_color="#f5f5f5", text_color="#333")
         self.commit_text.pack(fill="both", padx=10, pady=10, expand=True)
 
     def update_commits(self):
@@ -46,7 +46,52 @@ class CommitDisplay(CTkFrame):
                 # Display the commit details
                 self.commit_text.insert(
                     "end",
-                    f"Date: {date}\nAuthor: {author}\nMessage: {manual_message}\nChanges:\n{file_changes}\n\n"
+                    f"""Date: {date}
+Author: {author}
+Message: {manual_message}
+Changes:\n{file_changes}
+
+#########################
+"""
                 )
 
         self.commit_text.configure(state="disabled")
+
+
+class CommitMessageDialog(CTkToplevel):
+    def __init__(self, master, title="Commit Message"):
+        super().__init__(master)
+        self.title(title)
+        self.geometry("400x200")
+        self.resizable(False, False)
+
+        self.result = None  # Store the commit message result
+
+        # Label for the prompt
+        CTkLabel(self, text="Enter your commit message:", font=("Arial", 14)).pack(pady=10)
+
+        # Entry widget for the commit message
+        self.message_entry = CTkEntry(self, width=350)
+        self.message_entry.pack(pady=10)
+
+        # Buttons
+        button_frame = CTkFrame(self)
+        button_frame.pack(pady=10)
+
+        CTkButton(button_frame, text="Submit", command=self.submit).pack(side="left", padx=5)
+        CTkButton(button_frame, text="Cancel", command=self.cancel).pack(side="left", padx=5)
+
+        # Grab focus and wait for the dialog to close
+        self.grab_set()
+        self.message_entry.focus()
+        self.wait_window(self)
+
+    def submit(self):
+        """Handle the submit action."""
+        self.result = self.message_entry.get().strip()
+        self.destroy()
+
+    def cancel(self):
+        """Handle the cancel action."""
+        self.result = None
+        self.destroy()
