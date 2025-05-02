@@ -1,12 +1,10 @@
 """3D File Version Tracker Application"""
 
-from tkinter import Menu, filedialog, messagebox, simpledialog
+from customtkinter import CTk, CTkFrame, CTkButton, CTkLabel, CTkEntry, CTkToplevel
 from pathlib import Path
 import sqlite3
 import os
 from datetime import datetime
-
-from customtkinter import CTk
 
 from src.gui.main_window import MainWindow
 from src.utils.file_operations import scan_and_populate_files
@@ -17,7 +15,12 @@ class App(CTk):
     def __init__(self):
         super().__init__()
         self.title("3D File Version Tracker")
-        self.geometry("1000x600")
+        self.geometry("1200x800")
+
+        # Ask for the project folder at startup
+        self.main_folder = self.ask_project_folder()
+        self.title("3D File Version Tracker")
+        self.geometry("1200x800")
 
         # Ask for the project folder at startup
         self.main_folder = self.ask_project_folder()
@@ -28,14 +31,30 @@ class App(CTk):
             return
 
         # Ask for the author name
-        self.author = simpledialog.askstring("Your Name", "Enter your name (for commits and status updates):")
+        self.author = simpledialog.askstring("Your Name",
+                                "Enter your name (for commits and status updates):")
         if not self.author:
             self.author = "unknown"
 
         # Initialize the database
         self.db_file = self.main_folder / "project_data.db"
         self.conn = None
-        self.init_database()
+        if not self.db_file.exists():
+            messagebox.showinfo("Database Not Found",
+                                "Database file not found. A new one will be created.")
+            self.init_database()
+        else:
+            self.conn = sqlite3.connect(self.db_file)
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM files")
+            file_count = cursor.fetchone()[0]
+            if file_count == 0:
+                messagebox.showinfo("No Files Found",
+                            "No files found in the database. Please scan the project folder.")
+                self.init_database()
+            else:
+                messagebox.showinfo("Database Loaded",
+                                    f"Loaded {file_count} files from the database.")
         self.update_title()
 
         # Create the menu bar
@@ -50,8 +69,9 @@ class App(CTk):
         self.menu_bar.add_cascade(label="File", menu=file_menu)
 
         # Add the main window
-        self.main_window = MainWindow(self, self.conn)
+        self.main_window = MainWindow(self, self.conn, self.author)
         self.main_window.pack(fill="both", expand=True)
+
 
     def ask_project_folder(self):
         """Ask the user to select a project folder at startup."""
@@ -71,7 +91,9 @@ class App(CTk):
             version TEXT NOT NULL,
             status TEXT NOT NULL,
             notes TEXT,
-            modified BOOLEAN NOT NULL DEFAULT 0
+            modified BOOLEAN NOT NULL DEFAULT 0,
+            author TEXT,
+            last_modified_date TEXT
         )
         """)
         cursor.execute("""
@@ -91,24 +113,47 @@ class App(CTk):
         cursor.execute("""
         INSERT INTO changelog (date, author, changes)
         VALUES (?, ?, ?)
-        """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), self.author, "Initialized database and scanned files"))
+        """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), self.author,
+                            "Initialized database and scanned files"))
         self.conn.commit()
 
     def switch_project_folder(self):
         """Open a dialog to select a new project folder."""
-        new_folder = filedialog.askdirectory(initialdir=self.main_folder,
-                                title="Select Project Folder")
+        new_folder = filedialog.askdirectory(initialdir=self.main_folder, title="Select Project Folder")
         if new_folder:
             self.main_folder = Path(new_folder)
             self.db_file = self.main_folder / "project_data.db"
-            os.chdir(self.main_folder)  # Change the working directory
-            self.init_database()  # Reinitialize the database
+
+            # Close the existing database connection
+            if self.conn:
+                self.conn.close()
+
+            # Change the working directory
+            os.chdir(self.main_folder)
+
+            # Reinitialize the database
+            if not self.db_file.exists():
+                messagebox.showinfo("Database Not Found", "Database file not found. A new one will be created.")
+                self.init_database()
+            else:
+                self.conn = sqlite3.connect(self.db_file)
+                cursor = self.conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM files")
+                file_count = cursor.fetchone()[0]
+                messagebox.showinfo("Database Loaded", f"Loaded {file_count} files from the database.")
+
+            # Update the title
             self.update_title()
-            self.main_window.refresh_view()  # Refresh the view to reflect the new folder
+
+            # Destroy the old MainWindow and create a new one
+            self.main_window.destroy()
+            self.main_window = MainWindow(self, self.conn, self.author)
+            self.main_window.pack(fill="both", expand=True)
 
     def update_title(self):
         """Update the window title to include the current project folder."""
         self.title(f"3D File Version Tracker - {self.main_folder.name}")
+
 
 if __name__ == "__main__":
     app = App()

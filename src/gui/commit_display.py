@@ -26,6 +26,27 @@ class CommitDisplay(CTkFrame):
         else:
             for commit in commits:
                 date, author, changes = commit
-                self.commit_text.insert("end", f"Date: {date}\nAuthor: {author}\nChanges: {changes}\n\n")
+
+                # Split the commit message into the manually typed message and file-related changes
+                if " - " in changes:  # Assuming "||" separates the manual message and file details
+                    file_changes, manual_message = changes.split(" - ", 1)
+                    manual_message = manual_message.strip()
+                    file_changes = file_changes.strip()
+
+                    # Format file-related changes if they contain multiple files
+                    if "file(s):" in file_changes:
+                        parts = file_changes.split(":")
+                        if len(parts) > 1:
+                            filenames = parts[1].strip().split(", ")
+                            file_changes = "\n".join(f"* {filename}" for filename in filenames)
+                else:
+                    manual_message = changes
+                    file_changes = ""
+
+                # Display the commit details
+                self.commit_text.insert(
+                    "end",
+                    f"Date: {date}\nAuthor: {author}\nMessage: {manual_message}\nChanges:\n{file_changes}\n\n"
+                )
 
         self.commit_text.configure(state="disabled")

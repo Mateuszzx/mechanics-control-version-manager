@@ -1,26 +1,11 @@
-import yaml
+""" File operations for the 3D file management system."""
 from pathlib import Path
+from datetime import datetime
 
-def load_status(filepath):
-    with open(filepath, 'r') as file:
-        return yaml.safe_load(file)
-
-def save_status(data, filepath):
-    with open(filepath, 'w') as file:
-        yaml.dump(data, file)
-
-def scan_and_add_new_files(directory, existing_files):
-    new_files = []
-    allowed_ext = [".stl", ".step", ".sldprt", ".sldasm", ".stp"]
-
-    for path in Path(directory).rglob('*'):
-        if path.is_file() and path.suffix.lower() in allowed_ext:  # Normalize to lowercase
-            if str(path) not in existing_files:
-                new_files.append(str(path))
-    return new_files
 
 def scan_and_populate_files(main_folder, conn):
     """Scan the selected folder for files and populate the database."""
+
     allowed_ext = [".stl", ".step", ".sldprt", ".sldasm", ".stp"]
     cursor = conn.cursor()
 
@@ -36,3 +21,37 @@ def scan_and_populate_files(main_folder, conn):
                 VALUES (?, ?, ?, ?, ?)
                 """, (relative_path, "v1.0", "in_progress", "", False))
     conn.commit()
+
+def fetch_files(conn):
+    """Fetch all files from the database."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, version, status, notes, author, last_modified_date FROM files")
+    return cursor.fetchall()
+
+
+def update_file_status(conn, filename, new_status, author):
+    """Update the status, author, and last modified date of a file."""
+    cursor = conn.cursor()
+    cursor.execute("""
+    UPDATE files
+    SET status = ?, author = ?, last_modified_date = ?, modified = 1
+    WHERE name = ?
+    """, (new_status, author, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), filename))
+    conn.commit()
+
+
+def add_changelog_entry(conn, author, changes):
+    """Add a new entry to the changelog."""
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT INTO changelog (date, author, changes)
+    VALUES (?, ?, ?)
+    """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), author, changes))
+    conn.commit()
+
+
+def fetch_latest_commit(conn):
+    """Fetch the latest commit from the changelog."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT date, author, changes FROM changelog ORDER BY id DESC LIMIT 1")
+    return cursor.fetchone()
