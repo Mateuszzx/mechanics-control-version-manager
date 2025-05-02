@@ -38,7 +38,25 @@ def init_database(db_file, main_folder, author):
     INSERT INTO changelog (date, author, changes)
     VALUES (?, ?, ?)
     """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), author,
-          "Initialized database and scanned files"))
+        "Initialized database and scanned files"))
+    conn.commit()
+
+    return conn
+
+def init_commits_database(db_file):
+    """Initialize the SQLite database for commits."""
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    # Create the changelog table if it doesn't exist
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS changelog (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        author TEXT NOT NULL,
+        changes TEXT NOT NULL
+    )
+    """)
     conn.commit()
 
     return conn

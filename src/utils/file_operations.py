@@ -40,6 +40,17 @@ def update_file_status(conn, filename, new_status, author):
     conn.commit()
 
 
+def update_file_notes(conn, filename, notes):
+    """Update the notes for a file in the database."""
+    cursor = conn.cursor()
+    cursor.execute("""
+    UPDATE files
+    SET notes = ?
+    WHERE name = ?
+    """, (notes, filename))
+    conn.commit()
+
+
 def add_changelog_entry(conn, author, changes):
     """Add a new entry to the changelog."""
     cursor = conn.cursor()

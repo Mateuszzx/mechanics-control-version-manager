@@ -1,4 +1,5 @@
 from tkinter import simpledialog, messagebox
+import os
 
 from customtkinter import CTkFrame, CTkButton, CTkToplevel, CTkComboBox, CTkLabel
 from src.utils.file_actions import apply_status_to_files, commit_files, add_file_to_db, delete_files_from_db
@@ -9,24 +10,20 @@ from src.gui.commit_display import CommitMessageDialog  # Import the new dialog
 class ButtonsPanel(CTkFrame):
     """Panel containing buttons for file operations."""
     
-    def __init__(self, master, conn, author, refresh_callback, main_folder):
+    def __init__(self, master, files_conn, commits_conn, author, refresh_callback, main_folder):
         super().__init__(master)
-        self.conn = conn
+        self.files_conn = files_conn  # Connection to the files database
+        self.commits_conn = commits_conn  # Connection to the commits database
         self.author = author
         self.refresh_callback = refresh_callback
         self.main_folder = main_folder
 
         # Buttons
-        CTkButton(self, text="Commit Changes", command=
-                            self.commit_changes).pack(side="left", padx=5)
-        CTkButton(self, text="Change Status",
-                            command=self.change_status).pack(side="left", padx=5)
-        CTkButton(self, text="Scan for New Files",
-                            command=self.scan_files).pack(side="left", padx=5)
-        CTkButton(self, text="Add File",
-                            command=self.add_file).pack(side="left", padx=5)
-        CTkButton(self, text="Delete File",
-                            command=self.delete_file).pack(side="left", padx=5)
+        CTkButton(self, text="Commit Changes", command=self.commit_changes).pack(side="left", padx=5)
+        CTkButton(self, text="Change Status", command=self.change_status).pack(side="left", padx=5)
+        CTkButton(self, text="Scan for New Files", command=self.scan_files).pack(side="left", padx=5)
+        CTkButton(self, text="Add File", command=self.add_file).pack(side="left", padx=5)
+        CTkButton(self, text="Delete File", command=self.delete_file).pack(side="left", padx=5)
 
     def commit_changes(self):
         """Commit the selected file(s) and add a changelog entry."""
@@ -41,14 +38,27 @@ class ButtonsPanel(CTkFrame):
         if not comment:  # If the user cancels or submits an empty message
             return
 
-        filenames = [self.master.tree.item(item_id)["text"] for item_id in selected_items if self.master.tree.item(item_id)["values"]]
-        updated_files = commit_files(self.conn, filenames, comment, self.author)
+        # Retrieve the full file paths of the selected items
+        filenames = []
+        for item_id in selected_items:
+            item_text = self.master.tree.item(item_id)["text"]
+            parent_id = self.master.tree.parent(item_id)
+            full_path = item_text
+            while parent_id:  # Traverse up the tree to construct the full path
+                parent_text = self.master.tree.item(parent_id)["text"]
+                full_path = os.path.join(parent_text, full_path)
+                parent_id = self.master.tree.parent(parent_id)
+            filenames.append(full_path)
+
+        # Use both files_conn and commits_conn
+        updated_files = commit_files(self.files_conn, self.commits_conn, filenames, comment, self.author)
 
         if updated_files:
             messagebox.showinfo("Success", f"{len(updated_files)} file(s) committed.")
         else:
             messagebox.showinfo("No Files Updated", "No files were matched or updated.")
 
+        # Refresh the view to reflect the changes
         self.refresh_callback()
 
     def change_status(self):
@@ -98,8 +108,20 @@ class ButtonsPanel(CTkFrame):
             else:
                 new_status = selected_base
 
-            filenames = [self.master.tree.item(item_id)["text"] for item_id in selected_items if self.master.tree.item(item_id)["values"]]
-            updated_files = apply_status_to_files(self.conn, filenames, new_status, self.author)
+            # Resolve the full relative paths of the selected files
+            filenames = []
+            for item_id in selected_items:
+                item_text = self.master.tree.item(item_id)["text"]
+                parent_id = self.master.tree.parent(item_id)
+                full_path = item_text
+                while parent_id:  # Traverse up the tree to construct the full path
+                    parent_text = self.master.tree.item(parent_id)["text"]
+                    full_path = os.path.join(parent_text, full_path)
+                    parent_id = self.master.tree.parent(parent_id)
+                filenames.append(full_path)
+
+            # Update the status in the database
+            updated_files = apply_status_to_files(self.files_conn, filenames, new_status, self.author)
 
             if updated_files:
                 messagebox.showinfo("Success", f"Status updated for {len(updated_files)} file(s).")
@@ -114,7 +136,7 @@ class ButtonsPanel(CTkFrame):
 
     def scan_files(self):
         """Scan for new files and add them to the database."""
-        scan_and_add_new_files(self.conn, self.main_folder)
+        scan_and_add_new_files(self.files_conn, self.main_folder)
         self.refresh_callback()
         messagebox.showinfo("Scan Complete", "New files (if any) have been added.")
 
@@ -124,7 +146,7 @@ class ButtonsPanel(CTkFrame):
         if not filename:
             return
 
-        add_file_to_db(self.conn, filename)
+        add_file_to_db(self.files_conn, filename)
         self.refresh_callback()
 
     def delete_file(self):
@@ -139,7 +161,7 @@ class ButtonsPanel(CTkFrame):
             return
 
         filenames = [self.master.tree.item(item_id)["text"] for item_id in selected_items if self.master.tree.item(item_id)["values"]]
-        delete_files_from_db(self.conn, filenames)
+        delete_files_from_db(self.files_conn, filenames)
         self.refresh_callback()
 
         if filenames:

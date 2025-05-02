@@ -1,11 +1,17 @@
 """3D File Version Tracker Application"""
 
+import os
 from pathlib import Path
 from tkinter import filedialog
-from customtkinter import CTk, CTkFrame, CTkButton, CTkLabel, CTkEntry, CTkToplevel
+
+from customtkinter import CTk, CTkToplevel, CTkLabel, CTkEntry, CTkButton
+
 from src.gui.main_window import MainWindow
-from src.utils.database_utils import init_database
+from src.gui.menu import AppMenu  # Import the new menu class
+from src.utils.database_utils import init_database, init_commits_database
 from src.utils.workspace_utils import switch_workspace
+from src.utils.export_utils import export_commits_to_txt, export_commits_to_csv, export_commits_to_json
+
 
 class App(CTk):
     """Main application class for the 3D File Version Tracker."""
@@ -15,7 +21,6 @@ class App(CTk):
         self.title("3D File Version Tracker")
         self.geometry("1200x800")
 
-        # Ask for the project folder at startup
         self.main_folder = self.ask_project_folder()
         if not self.main_folder:
             self.show_info("No Folder Selected", "No project folder selected. Exiting application.")
@@ -27,27 +32,21 @@ class App(CTk):
         if not self.author:
             self.author = "unknown"
 
-        # Initialize the database
-        self.db_file = Path(self.main_folder) / "project_data.db"
-        if not self.db_file.exists():
-            self.conn = init_database(self.db_file, self.main_folder, self.author)
-        else:
-            self.conn = switch_workspace(self.main_folder, self.db_file,
-                                            self.author, self.show_info)
+        self.input_value = None
+
+        # Initialize the databases
+        self.files_db_file = Path(self.main_folder) / "files_data.db"
+        self.commits_db_file = Path(self.main_folder) / "commits_data.db"
+
+        self.files_conn = init_database(self.files_db_file, self.main_folder, self.author)
+        self.commits_conn = init_commits_database(self.commits_db_file)
+
         # Create the custom menu
-        self.create_menu()
+        self.menu = AppMenu(self, self.switch_project_folder, self.quit, self.export_commits)
 
         # Add the main window
-        self.main_window = MainWindow(self, self.conn, self.author)
+        self.main_window = MainWindow(self, self.files_conn, self.commits_conn, self.author)
         self.main_window.pack(fill="both", expand=True)
-
-    def create_menu(self):
-        """Create a custom menu using CTkButton."""
-        menu_frame = CTkFrame(self, height=50, fg_color="#f5f5f5")
-        menu_frame.pack(fill="x", padx=10, pady=5)
-
-        CTkButton(menu_frame, text="Switch Project Folder", command=self.switch_project_folder).pack(side="left", padx=5)
-        CTkButton(menu_frame, text="Exit", command=self.quit).pack(side="left", padx=5)
 
     def show_info(self, title, message):
         """Display an info message using CTkToplevel."""
@@ -85,15 +84,52 @@ class App(CTk):
         new_folder = self.ask_project_folder()
         if new_folder:
             self.main_folder = Path(new_folder)
-            self.db_file = self.main_folder / "project_data.db"
+            self.files_db_file = self.main_folder / "files_data.db"
+            self.commits_db_file = self.main_folder / "commits_data.db"
 
             # Switch workspace
-            self.conn = switch_workspace(self.main_folder, self.db_file, self.author, self.show_info)
+            self.files_conn = switch_workspace(self.main_folder, self.files_db_file, self.author, self.show_info)
+            self.commits_conn = init_commits_database(self.commits_db_file)
 
             # Destroy the old MainWindow and create a new one
             self.main_window.destroy()
-            self.main_window = MainWindow(self, self.conn, self.author)
+            self.main_window = MainWindow(self, self.files_conn, self.commits_conn, self.author)
             self.main_window.pack(fill="both", expand=True)
+
+    def export_commits(self, file_format):
+        """Export commits to a file in the specified format."""
+        cursor = self.commits_conn.cursor()
+        cursor.execute("SELECT date, author, changes FROM changelog ORDER BY id ASC")
+        commits = cursor.fetchall()
+
+        if not commits:
+            self.show_info("No Commits", "There are no commits to export.")
+            return
+
+        # Ask the user where to save the file
+        file_extension = file_format.lower()
+        file_types = {
+            "txt": [("Text Files", "*.txt"), ("All Files", "*.*")],
+            "csv": [("CSV Files", "*.csv"), ("All Files", "*.*")],
+            "json": [("JSON Files", "*.json"), ("All Files", "*.*")]
+        }
+        file_path = filedialog.asksaveasfilename(
+            title=f"Export Commits as {file_format.upper()}",
+            defaultextension=f".{file_extension}",
+            filetypes=file_types.get(file_format, [("All Files", "*.*")])
+        )
+        if not file_path:
+            return
+
+        # Export commits based on the selected format
+        if file_format == "txt":
+            export_commits_to_txt(file_path, commits)
+        elif file_format == "csv":
+            export_commits_to_csv(file_path, commits)
+        elif file_format == "json":
+            export_commits_to_json(file_path, commits)
+
+        self.show_info("Export Successful", f"Commits have been exported to:\n{os.path.abspath(file_path)}")
 
 
 if __name__ == "__main__":

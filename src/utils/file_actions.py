@@ -1,3 +1,6 @@
+""" Utility functions for file actions in a database context.
+This module provides functions to apply statuses, commit files, add new files """
+
 from datetime import datetime
 
 def apply_status_to_files(conn, selected_files, new_status, author):
@@ -29,14 +32,15 @@ def apply_status_to_files(conn, selected_files, new_status, author):
 
     return updated_files
 
-def commit_files(conn, selected_files, comment, author):
+def commit_files(files_conn, commits_conn, selected_files, comment, author):
     """Commit the selected files with a comment."""
-    cursor = conn.cursor()
+    files_cursor = files_conn.cursor()
+    commits_cursor = commits_conn.cursor()
     updated_files = []
 
     for filename in selected_files:
-        cursor.execute("SELECT version FROM files WHERE name = ?", (filename,))
-        row = cursor.fetchone()
+        files_cursor.execute("SELECT version FROM files WHERE name = ?", (filename,))
+        row = files_cursor.fetchone()
         if row:
             current_version = row[0]
             try:
@@ -45,26 +49,27 @@ def commit_files(conn, selected_files, comment, author):
             except ValueError:
                 new_version = "v1.01"
 
-            cursor.execute("""
+            print(f"DEBUG: Updating file {filename} to version {new_version}")  # Debugging
+            files_cursor.execute("""
             UPDATE files
-            SET version = ?, notes = ?, modified = 1, author = ?, last_modified_date = ?
+            SET version = ?, modified = 1, author = ?, last_modified_date = ?, notes = ?
             WHERE name = ?
-            """, (new_version, comment, author, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), filename))
+            """, (new_version, author, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), comment, filename))
             updated_files.append(filename)
 
-    conn.commit()
+    files_conn.commit()
 
     if updated_files:
-        # Add a changelog entry
-        cursor.execute("""
+        print(f"DEBUG: Adding changelog entry for {updated_files}")  # Debugging
+        commits_cursor.execute("""
         INSERT INTO changelog (date, author, changes)
         VALUES (?, ?, ?)
         """, (
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             author,
-            f"Committed {len(updated_files)} file(s): {', '.join(updated_files)} - {comment}"
+            f"{comment} - Committed {len(updated_files)} file(s): {', '.join(updated_files)}"
         ))
-        conn.commit()
+        commits_conn.commit()
 
     return updated_files
 
@@ -83,3 +88,4 @@ def delete_files_from_db(conn, filenames):
     for filename in filenames:
         cursor.execute("DELETE FROM files WHERE name = ?", (filename,))
     conn.commit()
+
