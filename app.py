@@ -5,6 +5,7 @@ including database initialization, GUI setup, and commit export functionality.
 """
 
 import os
+import sys
 from pathlib import Path
 from tkinter import filedialog
 
@@ -31,12 +32,12 @@ class App(CTk):
         super().__init__()
         self.title("3D File Version Tracker")
         self.geometry("1400x800")
-        self.iconbitmap("src/assets/icon.ico")
+        self.iconbitmap(resource_path("src/assets/icon.ico"))
 
         self.main_folder = self.ask_project_folder()
         if not self.main_folder:
             show_info(self, "No Folder Selected",
-                        "No project folder selected. Exiting application.")
+                      "No project folder selected. Exiting application.")
             self.destroy()
             return
 
@@ -45,14 +46,8 @@ class App(CTk):
         if not self.author:
             self.author = "unknown"
 
-        self.input_value = None
-
-        # Initialize the databases
-        self.files_db_file = Path(self.main_folder) / "files_data.db"
-        self.commits_db_file = Path(self.main_folder) / "commits_data.db"
-
-        self.files_conn = init_database(self.files_db_file, self.main_folder, self.author)
-        self.commits_conn = init_commits_database(self.commits_db_file)
+        # Initialize the databases in the `.cvs` folder
+        self.files_conn, self.commits_conn = self.initialize_databases()
 
         # Create the custom menu
         self.menu = AppMenu(self, self.switch_project_folder, self.quit, self.export_commits)
@@ -68,6 +63,23 @@ class App(CTk):
             str: The path to the selected project folder.
         """
         return filedialog.askdirectory(title="Select Project Folder")
+
+    def initialize_databases(self):
+        """Initialize the databases in the `.cvs` folder.
+
+        Returns:
+            tuple: A tuple containing connections to the files and commits databases.
+        """
+        cvs_folder = Path(self.main_folder) / ".cvs"
+        cvs_folder.mkdir(parents=True, exist_ok=True)
+
+        files_db_file = cvs_folder / "files_data.db"
+        commits_db_file = cvs_folder / "commits_data.db"
+
+        files_conn = init_database(files_db_file, self.main_folder, self.author)
+        commits_conn = init_commits_database(commits_db_file)
+
+        return files_conn, commits_conn
 
     def switch_project_folder(self):
         """Switch to a new project folder.
@@ -130,6 +142,15 @@ class App(CTk):
         show_info(self, "Export Successful",
                 f"Commits have been exported to:\n{os.path.abspath(file_path)}")
 
+
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and PyInstaller """
+    try:
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 if __name__ == "__main__":
     app = App()
