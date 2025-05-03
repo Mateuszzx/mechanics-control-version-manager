@@ -23,7 +23,7 @@ class MainWindow(CTkFrame):
 
         # File Treeview
         self.tree = ttk.Treeview(self, columns=("version", "status", "notes", "author",
-                                                        "last_modified_date"), show="tree")
+                                                        "last_modified_date"), show="tree headings")
         self.tree.heading("#0", text="File/Folder")
         for col in ("version", "status", "notes", "author", "last_modified_date"):
             self.tree.heading(col, text=col.replace("_", " ").title())
@@ -38,10 +38,10 @@ class MainWindow(CTkFrame):
 
         # Commit display
         self.commit_display = CommitDisplay(self, self.commits_conn)
-        self.commit_display.pack(fill="x", padx=10, pady=5)
+        self.commit_display.pack(fill="both", padx=10, pady=10, expand=True)
 
         # Latest commit info
-        self.latest_commit_label = CTkLabel(self, text="", font=("Arial", 12))
+        self.latest_commit_label = CTkLabel(self, text="", font=("Arial", 16, "italic"))
         self.latest_commit_label.pack(pady=10)
 
         # Buttons panel
@@ -53,7 +53,6 @@ class MainWindow(CTkFrame):
 
     def refresh_view(self):
         """Refresh the file tree and latest commit info."""
-        print("DEBUG: Refreshing view...")  # Debugging
 
         # Clear the TreeView
         self.tree.delete(*self.tree.get_children())
@@ -63,38 +62,43 @@ class MainWindow(CTkFrame):
         cursor.execute("SELECT name, version, status, notes, author, last_modified_date FROM files")
         files = cursor.fetchall()
 
-        # Populate the TreeView with the fetched files
+        # Separate folders and files
         folder_nodes = {}
+        files_by_folder = {}
+
         for file in files:
             name, version, status, notes, author, last_modified_date = file
             filepath = Path(name)
-            parent = ""
 
-            # Handle folder hierarchy
+            # Group files by their parent folder
             if filepath.parent != Path('.'):
                 folder = str(filepath.parent)
+                if folder not in files_by_folder:
+                    files_by_folder[folder] = []
+                files_by_folder[folder].append((filepath.name, version, status, notes,
+                                                author, last_modified_date))
+            else:
+                # Standalone files (no parent folder)
+                if "" not in files_by_folder:
+                    files_by_folder[""] = []
+                files_by_folder[""].append((filepath.name, version, status, notes,
+                                            author, last_modified_date))
+
+        # Insert folders first
+        for folder, folder_files in sorted(files_by_folder.items()):
+            parent = ""
+            if folder:
                 if folder not in folder_nodes:
                     folder_nodes[folder] = self.tree.insert("", "end", text=folder, open=True)
                 parent = folder_nodes[folder]
 
-            # Insert file into the TreeView
-            self.tree.insert(parent, "end", text=filepath.name, values=(
-                version, status, notes, author, last_modified_date
-            ))
+            # Insert files under the folder
+            for file_data in sorted(folder_files):
+                filename, version, status, notes, author, last_modified_date = file_data
+                self.tree.insert(parent, "end", text=filename, values=(
+                    version, status, notes, author, last_modified_date
+                ))
 
-        # Fetch the latest commit info
-        cursor = self.commits_conn.cursor()
-        cursor.execute("SELECT date, author, changes FROM changelog ORDER BY id DESC LIMIT 1")
-        latest_commit = cursor.fetchone()
-
-
-        if latest_commit:
-            date, author, changes = latest_commit
-            self.latest_commit_label.configure(
-                text=f"Last Commit: {changes} by {author} on {date}"
-            )
-        else:
-            self.latest_commit_label.configure(text="No commits yet.")
 
         # Update the commit display
         self.commit_display.update_commits()

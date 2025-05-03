@@ -13,10 +13,10 @@ class CommitDisplay(CTkFrame):
         self.conn = conn
         self.pack(fill="both", padx=10, pady=10, expand=True)
 
-        self.commit_label = CTkLabel(self, text="Recent Commits:")
+        self.commit_label = CTkLabel(self, text="Recent Commits:", font=("Arial", 32, "bold"))
         self.commit_label.pack(anchor="w", padx=10, pady=(10, 0))
 
-        self.commit_text = CTkTextbox(self, height=300, state="disabled",
+        self.commit_text = CTkTextbox(self, state="disabled",
                                     fg_color="#f5f5f5", text_color="#333")
         self.commit_text.pack(fill="both", padx=10, pady=10, expand=True)
 
@@ -26,9 +26,6 @@ class CommitDisplay(CTkFrame):
         cursor.execute("SELECT date, author, changes FROM changelog ORDER BY id DESC LIMIT 10")
         commits = cursor.fetchall()
 
-        # Debugging: Print fetched commits
-        print("DEBUG: Fetched commits:", commits)
-
         self.commit_text.configure(state="normal")
         self.commit_text.delete("1.0", "end")
 
@@ -37,9 +34,21 @@ class CommitDisplay(CTkFrame):
         else:
             for commit in commits:
                 date, author, changes = commit
+                if " - " in changes:
+                    message, changes = changes.split(": ", 1)
+                else:
+                    message, changes = changes, ""
+                changes = changes.replace(", ", ",\n    *")
                 self.commit_text.insert(
                     "end",
-                    f"Date: {date}\nAuthor: {author}\nChanges: {changes}\n\n"
+                    f"""Date: {date}
+Author: {author}
+Message: {message}
+Changes:
+    *{changes}
+
+--------------------------------------------------
+"""
                 )
 
         self.commit_text.configure(state="disabled")
@@ -55,7 +64,7 @@ class CommitMessageDialog(CTkToplevel):
         self.title(title)
         self.geometry("400x200")
         self.resizable(False, False)
-
+        
         self.result = None  # Store the commit message result
 
         # Label for the prompt

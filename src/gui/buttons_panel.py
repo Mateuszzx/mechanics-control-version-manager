@@ -1,3 +1,10 @@
+"""Buttons Panel for the 3D File Version Tracker application.
+
+This module provides a panel with buttons for performing file operations,
+such as committing changes, changing statuses, scanning for new files, adding files,
+and deleting files.
+"""
+
 from tkinter import simpledialog, messagebox
 import os
 
@@ -16,19 +23,35 @@ class ButtonsPanel(CTkFrame):
     """Panel containing buttons for file operations."""
 
     def __init__(self, master, files_conn, commits_conn, author, refresh_callback, main_folder):
+        """
+        Initialize the ButtonsPanel.
+
+        Args:
+            master (CTk): The parent widget.
+            files_conn (sqlite3.Connection): Connection to the files database.
+            commits_conn (sqlite3.Connection): Connection to the commits database.
+            author (str): The name of the author performing the operations.
+            refresh_callback (function): Callback function to refresh the main view.
+            main_folder (str): Path to the main project folder.
+        """
         super().__init__(master)
-        self.files_conn = files_conn  # Connection to the files database
-        self.commits_conn = commits_conn  # Connection to the commits database
+        self.files_conn = files_conn
+        self.commits_conn = commits_conn
         self.author = author
         self.refresh_callback = refresh_callback
         self.main_folder = main_folder
 
         # Buttons
-        CTkButton(self, text="Commit Changes", command=self.commit_changes).pack(side="left", padx=5)
-        CTkButton(self, text="Change Status", command=self.change_status).pack(side="left", padx=5)
-        CTkButton(self, text="Scan for New Files", command=self.scan_files).pack(side="left", padx=5)
-        CTkButton(self, text="Add File", command=self.add_file).pack(side="left", padx=5)
-        CTkButton(self, text="Delete File", command=self.delete_file).pack(side="left", padx=5)
+        CTkButton(self, text="Commit Changes",
+                        command=self.commit_changes).pack(side="left", padx=5)
+        CTkButton(self, text="Change Status",
+                        command=self.change_status).pack(side="left", padx=5)
+        CTkButton(self, text="Scan for New Files",
+                        command=self.scan_files).pack(side="left", padx=5)
+        CTkButton(self, text="Add File",
+                        command=self.add_file).pack(side="left", padx=5)
+        CTkButton(self, text="Delete File",
+                        command=self.delete_file).pack(side="left", padx=5)
 
     def commit_changes(self):
         """Commit the selected file(s) and add a changelog entry."""
@@ -56,7 +79,8 @@ class ButtonsPanel(CTkFrame):
             filenames.append(full_path)
 
         # Use both files_conn and commits_conn
-        updated_files = commit_files(self.files_conn, self.commits_conn, filenames, comment, self.author)
+        updated_files = commit_files(self.files_conn, self.commits_conn,
+                                    filenames, comment, self.author)
 
         if updated_files:
             messagebox.showinfo("Success", f"{len(updated_files)} file(s) committed.")
@@ -78,6 +102,7 @@ class ButtonsPanel(CTkFrame):
             "Author - is working on",
             "Final - Version",
             "Legacy",
+            "Droped",
             "Approved by...",
             "Rejected by..."
         ]
@@ -126,7 +151,8 @@ class ButtonsPanel(CTkFrame):
                 filenames.append(full_path)
 
             # Update the status in the database
-            updated_files = apply_status_to_files(self.files_conn, filenames, new_status, self.author)
+            updated_files = apply_status_to_files(self.files_conn,
+                                                filenames, new_status, self.author)
 
             if updated_files:
                 messagebox.showinfo("Success", f"Status updated for {len(updated_files)} file(s).")
@@ -161,11 +187,14 @@ class ButtonsPanel(CTkFrame):
             messagebox.showinfo("No selection", "Please select one or more files to delete.")
             return
 
-        confirm = messagebox.askyesno("Confirm Delete", "Are you sure you want to delete the selected file(s)?")
+        confirm = messagebox.askyesno("Confirm Delete",
+                                    "Are you sure you want to delete the selected file(s)?")
         if not confirm:
             return
 
-        filenames = [self.master.tree.item(item_id)["text"] for item_id in selected_items if self.master.tree.item(item_id)["values"]]
+        filenames = [self.master.tree.item(item_id)["text"]
+                    for item_id in selected_items if self.master.tree.item(item_id)["values"]]
+
         delete_files_from_db(self.files_conn, filenames)
         self.refresh_callback()
 
