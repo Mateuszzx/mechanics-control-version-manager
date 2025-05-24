@@ -34,6 +34,18 @@ control-version-manager
 
 ## Installation
 
+### For Normal Usage
+1. Clone the repository:
+
+   ``` Bash
+   git clone <repository-url>
+   ```
+
+2. Unzip control-version-manager.zip file into directory on your computer.
+3. Open folder, and create shortcut of app file (.exe extension).
+4. Put shortcut on Desktop.
+
+### Pure Python in Virtual Environment
 1. Clone the repository:
 
    ``` Bash
@@ -52,13 +64,14 @@ control-version-manager
    pip install -r requirements.txt
    ```
 
-## Usage
+## Rules
 
-To run the application, execute the following command:
-
-``` Bash
-python src/app.py
-```
+1. Never delete/change .cvs folder and files inside.
+2. Try always use the same username.
+3. Create regular commits during work, the best way is one after each session.
+4. If you work on some file, mark it in control version system before.
+5. Write understandable commits.
+6. Main strength of the system is following those simple rules.
 
 ## Dependencies
 
