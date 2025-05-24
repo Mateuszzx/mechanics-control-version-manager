@@ -66,12 +66,23 @@ control-version-manager
 
 ## Rules
 
-1. Never delete/change .cvs folder and files inside.
-2. Try always use the same username.
-3. Create regular commits during work, the best way is one after each session.
-4. If you work on some file, mark it in control version system before.
-5. Write understandable commits.
-6. Main strength of the system is following those simple rules.
+1. **Do not delete or modify the .cvs folder or any files within it.**
+These are essential for the version control system to function properly.
+
+2. **Use a consistent username.**
+This helps track contributions accurately across the project.
+
+3. **Commit regularly.**
+Ideally, make a commit after each work session to document progress clearly.
+
+4. **Mark files before editing.
+**If you're working on a file, check it out in the version control system first.
+
+5. **Write clear and meaningful commit messages.**
+Good commit messages make it easier to understand changes later.
+
+6. **The system works best when these simple rules are followed.**
+Consistency and discipline are key to effective collaboration.
 
 ## Dependencies
 
